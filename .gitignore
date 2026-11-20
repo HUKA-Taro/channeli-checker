@@ -1,0 +1,7 @@
+.venv/
+.local-checker/
+*.pyc
+*.zip
+*.json
+.env
+.env.*
