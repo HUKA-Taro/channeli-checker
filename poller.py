@@ -150,6 +150,7 @@ def poll_feeds(blob):
             response.raise_for_status()
             payload = response.json()
             old = saved.get("records", {})
+            last_push = saved.get("last_push_accepted")
             url_changed = saved.get("url") not in (None, feed["url"])
             quiet_baseline = first_run or url_changed or "records" not in saved
             if url_changed:
@@ -161,6 +162,7 @@ def poll_feeds(blob):
                     body = titles[0] if len(changes) == 1 else f"{len(changes)} new/updated notices: " + "; ".join(titles)
                     send_push(feed["topic"], "Noticeboard update", body[:500],
                               {"type": "notice_update", "count": len(changes)})
+                    last_push = now().isoformat()
             else:
                 records, changes = result_diff(old, payload, feed["view"])
                 if changes and not quiet_baseline:
@@ -171,9 +173,11 @@ def poll_feeds(blob):
                     body = f"{feed['season'].title()} {feed['view']} results changed: " + ", ".join(labels)
                     send_push(feed["topic"], "Placement results updated", body[:500],
                               {"type": "placement_result_update", "feed": name, "count": len(changes)})
+                    last_push = now().isoformat()
             state["feeds"][name] = {
                 "records": records, "etag": response.headers.get("ETag"), "url": feed["url"],
                 "retry_count": 0, "checked_at": now().isoformat(),
+                "last_push_accepted": last_push,
             }
         except requests.RequestException as error:
             count = int(saved.get("retry_count", 0)) + 1

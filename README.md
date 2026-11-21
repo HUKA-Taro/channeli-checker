@@ -41,8 +41,7 @@ cookie is needed.
 The Linux launcher uses the same service-account JSON for pushes and the
 Firestore heartbeat. The project owner configures the dedicated
 `checker-status` database, its rules, and a database-scoped IAM grant. The
-homelab operator can keep running the same launcher command. Windows polling
-keeps status off unless you supply `--status-key`.
+homelab operator can keep running the same launcher command. The Windows tray checker also publishes status with its configured Firebase key. Windows command-line polling can use the optional `--status-key` flag.
 
 The backend publishes a heartbeat every 30 seconds and checks the private ping
 mailbox every 15 seconds. Failed Firestore requests leave feed polling running.
@@ -56,3 +55,10 @@ To check the homelab from a Windows laptop with a private status credential:
 
 The public status document carries only a timestamp and per-feed health flags.
 The ping and reply stay in the private mailbox.
+
+Each running checker contributes a private heartbeat. Hosts expire after 90
+seconds. The apps show a feed as healthy if any current checker can read it.
+Private ping replies include the replying checker's last accepted push time
+when available. For accurate combined status, upgrade older checker instances
+that still write the single heartbeat directly. Multiple alert senders can
+produce duplicate notifications.

@@ -203,7 +203,17 @@ class CheckerWindow:
 
     def poll_loop(self):
         snapshot = Snapshot(RUNTIME_DIR / "poll-state.json")
+        status_stop = threading.Event()
         error = False
+        try:
+            from checker_status import respond
+
+            threading.Thread(
+                target=respond, args=(LOCAL_KEY, "checker-status", snapshot, status_stop),
+                daemon=True, name="checker-status",
+            ).start()
+        except ImportError:
+            logging.warning("Install requirements.txt to enable Firestore status")
         try:
             while not self.stop_requested.is_set():
                 started = time.monotonic()
@@ -215,6 +225,7 @@ class CheckerWindow:
             logging.exception("Checker stopped unexpectedly")
             error = True
         finally:
+            status_stop.set()
             self.actions.put((self.poll_finished, (error,)))
 
     def stop(self):
