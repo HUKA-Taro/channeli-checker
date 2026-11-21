@@ -17,74 +17,23 @@ On the configured laptop, the Windows Startup shortcut opens the checker in the 
 
 ## Headless Linux setup
 
-Run the checker from a host that can access the IITR feeds. No inbound port,
-public tunnel, Channel i account, or campus session cookie is required.
+Use a Linux host on the IITR network with Git, Python 3.11 or later, and
+Python's venv support. Store the Firebase JSON outside the checkout under the
+account that runs the checker.
 
 ```sh
 git clone https://github.com/HUKA-Taro/channeli-checker.git
 cd channeli-checker
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python run_local.py --check
-```
-
-Once both feeds report OK, run the following under a dedicated service user.
-Store the Firebase service account JSON outside the checkout in a private
-directory, readable only by that user. The service account needs permission
-to send FCM messages in the Firebase project used by the V2 apps.
-
-```sh
 chmod 600 /path/to/firebase-fcm.json
-.venv/bin/python run_local.py --firebase-key /path/to/firebase-fcm.json
+python3 run_homelab.py /path/to/firebase-fcm.json
 ```
 
-For unattended operation, use that absolute command as the service entry point
-and configure your service manager to start it at boot and restart on failure.
-Keep the Git-ignored `.local-checker` folder writable by the service user so
-snapshots survive a restart. Run only one active checker per Firebase project
-to avoid duplicate pushes. The first successful fetch establishes a baseline.
+The launcher installs dependencies locally, keeps the checker running and
+checks for a new stable GitHub release at startup and then once an hour. It accepts only
+forward updates from the official main branch and keeps local snapshots in
+`.local-checker`. Keep the launcher running under your service manager if you
+want it to start after reboot. Use a dedicated unprivileged service account
+on the host. Run one checker per Firebase project. No inbound port or session
+cookie is needed.
 
-The checker watches notices and the placement company results index.
-
-## Optional remote health check
-
-Create a dedicated Firestore Native mode database named `checker-status`.
-Deploy `firestore.status.rules` to this dedicated database so the apps can read only `checker_status/public`. The ping mailbox and all client writes remain private. The checker and laptop command use
-service accounts through IAM. Use separate status credentials from the FCM
-key, and restrict access to this database with a database-level IAM condition
-or put it in a separate status-only Google Cloud project. The JSON credentials
-must point to the project that owns the database.
-
-The homelab status account needs `datastore.entities.get`, `datastore.entities.create` (for the initial heartbeat), and
-`datastore.entities.update`. The laptop account also needs
-`datastore.entities.create` to initialize the mailbox. Keep both JSON files
-outside the repository and give the homelab only its own status credential.
-See https://docs.cloud.google.com/firestore/native/docs/security/iam for IAM
-details.
-
-After updating the checkout and reinstalling requirements, start the homelab
-checker with the additional status key:
-
-```sh
-.venv/bin/python run_local.py --firebase-key /path/to/firebase-fcm.json --status-key /path/to/homelab-status.json
-```
-
-Run the following on your laptop from the checker directory:
-
-```powershell
-.venv/Scripts/python.exe checker_status.py --key "E:/path/to/laptop-status.json"
-```
-
-If you use a different database name, pass `--status-database` on the homelab
-and `--database` on the laptop. The homelab checks the mailbox every 15 seconds.
-The reply reports each feed's last successful check and consecutive failures.
-Firestore access failures do not stop notification polling. This status
-exchange needs no public homelab URL and stores no notice contents or account
-data. Allow only one active homelab responder for this mailbox.
-
-The status worker publishes a heartbeat every 30 seconds. It contains only the
-server timestamp and a health flag for each feed. The V2 apps use the
-`placement-apps` project and `checker-status` database by default. If you deploy
-this to a separate project or database, build both apps with the matching
-`--dart-define=CHECKER_STATUS_PROJECT=...` and
-`--dart-define=CHECKER_STATUS_DATABASE=...` values.
+Remote ping and heartbeat setup is paused. The launcher starts the notice and result checker with only the FCM key.
