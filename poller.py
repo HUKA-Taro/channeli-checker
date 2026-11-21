@@ -11,7 +11,8 @@ from firebase_admin import credentials, messaging
 
 NOTICE_TOPIC = "noticeboard_v2_alerts"
 PLACEMENT_TOPIC = "placement_v2_alerts"
-MAX_BACKOFF = 300
+REQUEST_TIMEOUT = 10
+MAX_BACKOFF = 30
 
 
 def now():
@@ -132,7 +133,7 @@ def poll_feeds(blob):
         if saved.get("etag"):
             headers["If-None-Match"] = saved["etag"]
         try:
-            response = requests.get(feed["url"], headers=headers, timeout=4)
+            response = requests.get(feed["url"], headers=headers, timeout=REQUEST_TIMEOUT)
             if response.status_code == 304:
                 saved["retry_count"] = 0
                 saved.pop("retry_until", None)

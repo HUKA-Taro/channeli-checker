@@ -1,9 +1,9 @@
-"""Run the two Channel i feeds on Windows using a local snapshot."""
+"""Run the two Channel i feeds using a local snapshot."""
 
 import argparse
 import json
 import logging
-import msvcrt
+import os
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -95,7 +95,12 @@ def main():
     with (RUNTIME_DIR / "run.lock").open("a+b") as lock:
         lock.seek(0)
         try:
-            msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            if os.name == "nt":
+                import msvcrt
+                msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             parser.exit(1, "The local checker is already running.\n")
 
