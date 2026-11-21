@@ -28,7 +28,11 @@ def mailbox(key_path, database):
 
 
 def respond(key_path, database, snapshot, stop):
-    client, ref = mailbox(key_path, database)
+    try:
+        client, ref = mailbox(key_path, database)
+    except Exception as error:
+        logging.warning("Could not initialize status mailbox: %s", type(error).__name__)
+        return
     heartbeat = client.document("checker_status/public")
     next_heartbeat = 0
     while not stop.is_set():

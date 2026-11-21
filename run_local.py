@@ -60,6 +60,8 @@ def main():
     mode.add_argument("--firebase-key", type=Path, help="Path to your Firebase Admin key JSON.")
     parser.add_argument("--status-key", type=Path, help="Enable remote pings with a separate Firestore key.")
     parser.add_argument("--status-database", default="checker-status")
+    parser.add_argument("--without-status", action="store_true",
+                        help="Disable Firestore status even on the Linux homelab.")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -110,13 +112,16 @@ def main():
         logging.info("Local checker started. Poll interval: %s seconds.", POLL_INTERVAL)
         logging.info("Snapshot: %s", snapshot.path)
         status_stop = threading.Event()
-        if args.status_key:
+        status_key = args.status_key
+        if status_key is None and os.name == "posix" and args.firebase_key:
+            status_key = key_path
+        if status_key and not args.without_status:
             from checker_status import respond
 
-            if not args.status_key.is_file():
+            if not status_key.is_file():
                 parser.exit(1, "The Firestore status key file does not exist.\n")
             threading.Thread(
-                target=respond, args=(args.status_key, args.status_database, snapshot, status_stop),
+                target=respond, args=(status_key, args.status_database, snapshot, status_stop),
                 daemon=True, name="checker-status",
             ).start()
         seen = set()

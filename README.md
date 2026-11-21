@@ -36,4 +36,23 @@ want it to start after reboot. Use a dedicated unprivileged service account
 on the host. Run one checker per Firebase project. No inbound port or session
 cookie is needed.
 
-Remote ping and heartbeat setup is paused. The launcher starts the notice and result checker with only the FCM key.
+## Remote status
+
+The Linux launcher uses the same service-account JSON for pushes and the
+Firestore heartbeat. The project owner configures the dedicated
+`checker-status` database, its rules, and a database-scoped IAM grant. The
+homelab operator can keep running the same launcher command. Windows polling
+keeps status off unless you supply `--status-key`.
+
+The backend publishes a heartbeat every 30 seconds and checks the private ping
+mailbox every 15 seconds. Failed Firestore requests leave feed polling running.
+In the V2 apps, open **Profile > Notification settings** to see the status.
+
+To check the homelab from a Windows laptop with a private status credential:
+
+```powershell
+.venv/Scripts/python.exe checker_status.py --key "E:/path/to/laptop-status.json"
+```
+
+The public status document carries only a timestamp and per-feed health flags.
+The ping and reply stay in the private mailbox.
