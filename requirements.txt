@@ -2,3 +2,4 @@ firebase-admin>=6.5.0
 requests>=2.32.0
 pystray>=0.19.5,<0.20
 Pillow>=11
+google-cloud-firestore>=2.20,<3

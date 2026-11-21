@@ -1,0 +1,8 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /checker_status/public {
+      allow get: if true;
+    }
+  }
+}

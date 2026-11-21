@@ -45,3 +45,46 @@ snapshots survive a restart. Run only one active checker per Firebase project
 to avoid duplicate pushes. The first successful fetch establishes a baseline.
 
 The checker watches notices and the placement company results index.
+
+## Optional remote health check
+
+Create a dedicated Firestore Native mode database named `checker-status`.
+Deploy `firestore.status.rules` to this dedicated database so the apps can read only `checker_status/public`. The ping mailbox and all client writes remain private. The checker and laptop command use
+service accounts through IAM. Use separate status credentials from the FCM
+key, and restrict access to this database with a database-level IAM condition
+or put it in a separate status-only Google Cloud project. The JSON credentials
+must point to the project that owns the database.
+
+The homelab status account needs `datastore.entities.get`, `datastore.entities.create` (for the initial heartbeat), and
+`datastore.entities.update`. The laptop account also needs
+`datastore.entities.create` to initialize the mailbox. Keep both JSON files
+outside the repository and give the homelab only its own status credential.
+See https://docs.cloud.google.com/firestore/native/docs/security/iam for IAM
+details.
+
+After updating the checkout and reinstalling requirements, start the homelab
+checker with the additional status key:
+
+```sh
+.venv/bin/python run_local.py --firebase-key /path/to/firebase-fcm.json --status-key /path/to/homelab-status.json
+```
+
+Run the following on your laptop from the checker directory:
+
+```powershell
+.venv/Scripts/python.exe checker_status.py --key "E:/path/to/laptop-status.json"
+```
+
+If you use a different database name, pass `--status-database` on the homelab
+and `--database` on the laptop. The homelab checks the mailbox every 15 seconds.
+The reply reports each feed's last successful check and consecutive failures.
+Firestore access failures do not stop notification polling. This status
+exchange needs no public homelab URL and stores no notice contents or account
+data. Allow only one active homelab responder for this mailbox.
+
+The status worker publishes a heartbeat every 30 seconds. It contains only the
+server timestamp and a health flag for each feed. The V2 apps use the
+`placement-apps` project and `checker-status` database by default. If you deploy
+this to a separate project or database, build both apps with the matching
+`--dart-define=CHECKER_STATUS_PROJECT=...` and
+`--dart-define=CHECKER_STATUS_DATABASE=...` values.

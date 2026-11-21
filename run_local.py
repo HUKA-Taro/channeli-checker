@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -57,6 +58,8 @@ def main():
     mode.add_argument("--run", action="store_true", help="Start using your saved key path.")
     mode.add_argument("--check", action="store_true", help="Fetch both feeds once without sending alerts.")
     mode.add_argument("--firebase-key", type=Path, help="Path to your Firebase Admin key JSON.")
+    parser.add_argument("--status-key", type=Path, help="Enable remote pings with a separate Firestore key.")
+    parser.add_argument("--status-database", default="checker-status")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -106,6 +109,16 @@ def main():
 
         logging.info("Local checker started. Poll interval: %s seconds.", POLL_INTERVAL)
         logging.info("Snapshot: %s", snapshot.path)
+        status_stop = threading.Event()
+        if args.status_key:
+            from checker_status import respond
+
+            if not args.status_key.is_file():
+                parser.exit(1, "The Firestore status key file does not exist.\n")
+            threading.Thread(
+                target=respond, args=(args.status_key, args.status_database, snapshot, status_stop),
+                daemon=True, name="checker-status",
+            ).start()
         seen = set()
         try:
             while True:
@@ -118,6 +131,8 @@ def main():
                 time.sleep(max(0, POLL_INTERVAL - (time.monotonic() - started)))
         except KeyboardInterrupt:
             logging.info("Local checker stopped.")
+        finally:
+            status_stop.set()
     return 0
 
 

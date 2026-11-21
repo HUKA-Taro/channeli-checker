@@ -135,6 +135,7 @@ def poll_feeds(blob):
         try:
             response = requests.get(feed["url"], headers=headers, timeout=REQUEST_TIMEOUT)
             if response.status_code == 304:
+                saved["checked_at"] = now().isoformat()
                 saved["retry_count"] = 0
                 saved.pop("retry_until", None)
                 state["feeds"][name] = saved
