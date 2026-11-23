@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -62,6 +63,7 @@ def main():
     parser.add_argument("--status-database", default="checker-status")
     parser.add_argument("--without-status", action="store_true",
                         help="Disable Firestore status even on the Linux homelab.")
+    parser.add_argument("--allow-update-request", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -120,8 +122,23 @@ def main():
 
             if not status_key.is_file():
                 parser.exit(1, "The Firestore status key file does not exist.\n")
+            homelab = None
+            if os.name == "posix" and args.firebase_key:
+                try:
+                    commit = subprocess.check_output(
+                        ["git", "rev-parse", "--short=12", "HEAD"], cwd=RUNTIME_DIR.parent,
+                        text=True, timeout=5, stderr=subprocess.DEVNULL,
+                    ).strip()
+                    version = subprocess.run(
+                        ["git", "describe", "--tags", "--exact-match", "--match", "v[0-9]*"],
+                        cwd=RUNTIME_DIR.parent, capture_output=True, text=True, timeout=5,
+                    ).stdout.strip()
+                except (OSError, subprocess.SubprocessError):
+                    version, commit = "", ""
+                update_request = RUNTIME_DIR / "update-request" if args.allow_update_request else None
+                homelab = (version, commit, update_request)
             threading.Thread(
-                target=respond, args=(status_key, args.status_database, snapshot, status_stop),
+                target=respond, args=(status_key, args.status_database, snapshot, status_stop, homelab),
                 daemon=True, name="checker-status",
             ).start()
             threading.Thread(

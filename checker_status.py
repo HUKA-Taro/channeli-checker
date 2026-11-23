@@ -86,7 +86,7 @@ def publish_app_versions(key_path, database, stop):
         stop.wait(INTERVAL_SECONDS)
 
 
-def respond(key_path, database, snapshot, stop):
+def respond(key_path, database, snapshot, stop, homelab=None):
     try:
         client, ref = mailbox(key_path, database)
     except Exception as error:
@@ -128,20 +128,58 @@ def respond(key_path, database, snapshot, stop):
             pass
         except Exception as error:
             logging.warning("Status mailbox unavailable: %s", type(error).__name__)
+        if homelab is not None:
+            respond_to_control(client, *homelab)
         stop.wait(POLL_SECONDS)
+
+
+def respond_to_control(client, version, commit, update_request):
+    ref = client.document("checker_status/homelab_control")
+    try:
+        request = ref.get(**RPC_OPTIONS)
+        ping = request.to_dict() or {}
+        requested = ping.get("requested_at")
+        if (not ping.get("request_id") or ping.get("responded_at")
+                or not isinstance(requested, datetime)
+                or not timedelta(0) <= request.read_time - requested < timedelta(minutes=1)):
+            return
+        result = "status"
+        if ping.get("action") == "update":
+            if update_request is None:
+                result = "launcher_restart_required"
+            else:
+                update_request.touch()
+                result = "update_requested"
+        ref.update(
+            {"responded_at": SERVER_TIMESTAMP, "version": version,
+             "commit": commit, "result": result},
+            option=client.write_option(last_update_time=request.update_time),
+            **RPC_OPTIONS,
+        )
+    except FailedPrecondition:
+        pass
+    except Exception as error:
+        logging.warning("Homelab control unavailable: %s", type(error).__name__)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--key", required=True, type=Path)
     parser.add_argument("--database", default="checker-status")
+    actions = parser.add_mutually_exclusive_group()
+    actions.add_argument("--version", action="store_true", help="Ask the homelab which release it is running.")
+    actions.add_argument("--update", action="store_true", help="Ask the homelab launcher to check GitHub now.")
     args = parser.parse_args()
 
     try:
-        _, ref = mailbox(args.key, args.database)
+        client, ref = mailbox(args.key, args.database)
+        if args.version or args.update:
+            ref = client.document("checker_status/homelab_control")
         request_id = uuid4().hex
         start = time.monotonic()
-        ref.set({"request_id": request_id, "requested_at": SERVER_TIMESTAMP}, **RPC_OPTIONS)
+        action = "update" if args.update else "version" if args.version else "status"
+        ref.set({"request_id": request_id, "requested_at": SERVER_TIMESTAMP, "action": action},
+                **RPC_OPTIONS)
         while time.monotonic() - start < TIMEOUT_SECONDS:
             reply = ref.get(**RPC_OPTIONS).to_dict() or {}
             if reply.get("request_id") != request_id:
@@ -149,6 +187,14 @@ def main():
             if reply.get("responded_at"):
                 elapsed = time.monotonic() - start
                 print(f"Checker replied in {elapsed:.1f}s (includes waiting for its mailbox check).")
+                if args.version or args.update:
+                    print(f"Homelab release: {reply.get('version') or 'untagged'} "
+                          f"({reply.get('commit') or 'unknown commit'}).")
+                    if args.update:
+                        if reply.get("result") != "update_requested":
+                            print("Restart the homelab launcher once to enable remote update requests.")
+                            return 1
+                        print("Update check requested. Ping --version again to confirm the result.")
                 for name, info in reply.get("feeds", {}).items():
                     print(f"{name}: last success {info['last_success'] or 'none yet'}; "
                           f"consecutive failures {info['consecutive_failures']}; "

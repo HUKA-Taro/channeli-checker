@@ -81,3 +81,18 @@ number from the tagged Flutter `pubspec.yaml`. Keep the tag and version in
 `pubspec.yaml` in sync. The checker requires GitHub to report the APK as
 uploaded and provide its SHA-256 digest before advancing the required build.
 The initial gated releases need policy documents before a fresh install can open.
+
+## Query or update the homelab checker
+
+Use the same private Firestore status credential as the health ping.
+
+```powershell
+.venv/Scripts/python.exe checker_status.py --key "E:/path/to/laptop-status.json" --version
+.venv/Scripts/python.exe checker_status.py --key "E:/path/to/laptop-status.json" --update
+```
+
+The update command asks the launcher to run its normal GitHub release check
+immediately. It acknowledges the request before the check finishes. Run the
+version query again to confirm which release is running. After the first
+automatic upgrade to v1.0.5, restart the launcher service once to load the new
+launcher code and enable remote update requests.

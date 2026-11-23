@@ -97,14 +97,16 @@ def main():
             parser.error("The checker launcher is already running")
         current = git("rev-parse", "HEAD")
         python = prepare_python((ROOT / "requirements.txt").read_bytes())
-        worker_args = ["run_local.py", "--firebase-key", str(key)]
+        worker_args = ["run_local.py", "--firebase-key", str(key), "--allow-update-request"]
+        update_request = RUNTIME / "update-request"
         worker = None
         next_update = 0
         try:
             while not stop.is_set():
                 if worker is None or worker.poll() is not None:
                     worker = subprocess.Popen([str(python), *worker_args], cwd=ROOT)
-                if time.monotonic() >= next_update:
+                if update_request.exists() or time.monotonic() >= next_update:
+                    update_request.unlink(missing_ok=True)
                     next_update = time.monotonic() + UPDATE_INTERVAL
                     try:
                         target = release_target(current)
