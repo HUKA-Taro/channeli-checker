@@ -72,10 +72,12 @@ Deploy `firestore.status.rules` to the existing checker status database.
 Clients can read the two policy documents, and the checker writes them using
 the existing Firebase Admin credential.
 
-The checker checks GitHub every five minutes. For a stable `vX.Y.Z` release,
-attach one signed APK named `<app>-X.Y.Z-<Android build number>.apk`. The app
-IDs for this naming convention are `noticeboardv2` and `placementv2`.
-Use the APK Android build number, verify its signing certificate, and attach
-it before publishing. An uploaded APK and its GitHub digest must be present
-before the required build advances. The initial gated releases need policy
-documents before a fresh installation can open.
+The checker checks GitHub every five minutes. Build and sign the APK from the
+source at the stable release tag, then attach one APK before publishing. Use
+a name such as `noticeboardv2-2.1.0.apk` or `placementv2-2.3.0.apk`.
+
+The checker reads the release version from the tag and the Android build
+number from the tagged Flutter `pubspec.yaml`. Keep the tag and version in
+`pubspec.yaml` in sync. The checker requires GitHub to report the APK as
+uploaded and provide its SHA-256 digest before advancing the required build.
+The initial gated releases need policy documents before a fresh install can open.

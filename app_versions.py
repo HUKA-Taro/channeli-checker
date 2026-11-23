@@ -2,6 +2,8 @@
 import json
 import logging
 import re
+from urllib.error import HTTPError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from google.cloud.firestore import SERVER_TIMESTAMP
@@ -13,6 +15,25 @@ RELEASE_REPOS = {
 TAG = re.compile(r"v(\d+\.\d+\.\d+)$")
 INTERVAL_SECONDS = 300
 RPC_OPTIONS = {"timeout": 5, "retry": None}
+
+
+def tagged_build_number(app, repo, tag, version):
+    paths = ("pubspec.yaml", "noticeboard/pubspec.yaml") if app == "noticeboardv2" else ("pubspec.yaml",)
+    for path in paths:
+        url = f"https://raw.githubusercontent.com/{repo}/{tag}/{path}"
+        try:
+            with urlopen(url, timeout=10) as response:
+                pubspec = response.read().decode("utf-8")
+        except HTTPError as error:
+            if error.code == 404:
+                continue
+            raise
+        match = re.search(r"^version:[ \t]*(\d+\.\d+\.\d+)\+([1-9]\d*)[ \t]*(?:#[^\r\n]*)?\r?$",
+                          pubspec, re.MULTILINE)
+        if match and match[1] == version:
+            return int(match[2])
+        return None
+    return None
 
 
 def release_policy(app, repo):
@@ -27,24 +48,24 @@ def release_policy(app, repo):
     if not match or release.get("draft") or release.get("prerelease"):
         return None
     version = match[1]
-    name_pattern = re.compile(rf"{app}-{re.escape(version)}-([1-9]\d*)\.apk$")
-    matches = []
+    downloads = []
     for asset in release.get("assets", ()):
         name = asset.get("name", "")
-        build = name_pattern.fullmatch(name)
-        url = f"https://github.com/{repo}/releases/download/{tag}/{name}"
-        if (build and asset.get("state") == "uploaded"
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]*\.apk", name):
+            continue
+        url = f"https://github.com/{repo}/releases/download/{tag}/{quote(name)}"
+        if (asset.get("state") == "uploaded"
                 and asset.get("size", 0) > 0
                 and re.fullmatch(r"sha256:[a-f0-9]{64}", asset.get("digest") or "")
-                and (asset.get("browser_download_url") or "").casefold() == url.casefold()):
-            matches.append({
-                "minimum_build": int(build[1]),
-                "version": version,
-                "download_url": url,
-            })
-    if len(matches) == 1:
-        return matches[0]
-    return None
+                and asset.get("browser_download_url") == url):
+            downloads.append(url)
+    if len(downloads) != 1:
+        return None
+    build = tagged_build_number(app, repo, tag, version)
+    if build is None:
+        return None
+    return {"minimum_build": build, "version": version, "download_url": downloads[0]}
+
 
 
 def publish_versions(client):
