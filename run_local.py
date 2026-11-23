@@ -116,7 +116,7 @@ def main():
         if status_key is None and os.name == "posix" and args.firebase_key:
             status_key = key_path
         if status_key and not args.without_status:
-            from checker_status import respond
+            from checker_status import publish_app_versions, respond
 
             if not status_key.is_file():
                 parser.exit(1, "The Firestore status key file does not exist.\n")
@@ -124,6 +124,28 @@ def main():
                 target=respond, args=(status_key, args.status_database, snapshot, status_stop),
                 daemon=True, name="checker-status",
             ).start()
+            if (os.environ.get("NOTICEBOARDV2_RELEASE_REPO")
+                    or os.environ.get("PLACEMENTV2_RELEASE_REPO")):
+                threading.Thread(
+                    target=publish_app_versions,
+                    args=(status_key, args.status_database, status_stop),
+                    daemon=True, name="app-versions",
+                ).start()
+        activity_port = os.environ.get("TEST_ACTIVITY_PORT")
+        if activity_port:
+            from test_activity import ActivityServer
+
+            try:
+                activity = ActivityServer(
+                    int(activity_port),
+                    RUNTIME_DIR / "test-activity.json",
+                    RUNTIME_DIR / "test-activity.sqlite3",
+                )
+                threading.Thread(
+                    target=activity.serve_forever, daemon=True, name="test-activity",
+                ).start()
+            except (OSError, ValueError, KeyError, TypeError) as error:
+                logging.warning("Test activity server unavailable: %s", type(error).__name__)
         seen = set()
         try:
             while True:

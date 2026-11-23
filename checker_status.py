@@ -73,6 +73,19 @@ def publish_heartbeat(client, host_id, feed_state):
     logging.warning("Heartbeat contention; will retry on the next cycle")
 
 
+def publish_app_versions(key_path, database, stop):
+    from app_versions import INTERVAL_SECONDS, publish_versions
+
+    try:
+        client, _ = mailbox(key_path, database)
+    except Exception as error:
+        logging.warning("Could not initialize version publisher: %s", type(error).__name__)
+        return
+    while not stop.is_set():
+        publish_versions(client)
+        stop.wait(INTERVAL_SECONDS)
+
+
 def respond(key_path, database, snapshot, stop):
     try:
         client, ref = mailbox(key_path, database)
