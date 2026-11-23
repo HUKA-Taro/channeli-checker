@@ -78,37 +78,3 @@ Use the APK Android build number, verify its signing certificate, and attach
 it before publishing. An uploaded APK and its GitHub digest must be present
 before the required build advances. The initial gated releases need policy
 documents before a fresh installation can open.
-
-## Private test activity
-
-For authorized IMG test accounts, set `TEST_ACTIVITY_PORT` on the homelab and
-forward HTTPS `POST /activity` to that localhost port. Exclude authorization
-headers and request bodies from proxy logs. Keep the configuration and
-database in `.local-checker/` on the homelab, with access limited to the
-service user. The file `.local-checker/test-activity.json` has this format:
-
-```json
-{
-  "device_key": "<64 lowercase hex characters>",
-  "accounts": {
-    "<SHA-256 hex of the pairing code>": {
-      "name": "<authorized test account name>",
-      "enrollment": "<authorized test enrollment number>"
-    }
-  }
-}
-```
-
-Generate independent random 32-byte hex strings for the device key and each
-pairing code. The account map uses the SHA-256 hash of the ASCII hex code.
-Supply the original code only to the tester pairing the installed app.
-Removing a hash from the config revokes that code. Keep the device key stable
-to preserve device counts over time. The device ID is received over HTTPS
-and stored only as a keyed hash. The service also stores the app, build,
-test account name and enrollment, and last activity time.
-
-View 30-day counts on the homelab:
-
-```sh
-python test_activity.py --db .local-checker/test-activity.sqlite3 --active-days 30
-```
