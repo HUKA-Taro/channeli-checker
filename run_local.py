@@ -63,6 +63,7 @@ def main():
     parser.add_argument("--status-database", default="checker-status")
     parser.add_argument("--without-status", action="store_true",
                         help="Disable Firestore status even on the Linux homelab.")
+    # Accept the legacy launcher argument so a running v1.0.5 launcher can start this worker.
     parser.add_argument("--allow-update-request", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -135,8 +136,7 @@ def main():
                     ).stdout.strip()
                 except (OSError, subprocess.SubprocessError):
                     version, commit = "", ""
-                update_request = RUNTIME_DIR / "update-request" if args.allow_update_request else None
-                homelab = (version, commit, update_request)
+                homelab = (version, commit)
             threading.Thread(
                 target=respond, args=(status_key, args.status_database, snapshot, status_stop, homelab),
                 daemon=True, name="checker-status",
