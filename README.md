@@ -65,8 +65,9 @@ produce duplicate notifications.
 
 ## Android release policy
 
-On the homelab, set `NOTICEBOARDV2_RELEASE_REPO` and `PLACEMENTV2_RELEASE_REPO`
-to the canonical `owner/name` values for the two public app repos.
+The homelab checks the public [Noticeboard V2](https://github.com/HUKA-Taro/noticeboard_v2)
+and [Placement V2](https://github.com/HUKA-Taro/placement_v2) repos automatically
+when Firestore is enabled. No release repo environment variables are required.
 Deploy `firestore.status.rules` to the existing checker status database.
 Clients can read the two policy documents, and the checker writes them using
 the existing Firebase Admin credential.

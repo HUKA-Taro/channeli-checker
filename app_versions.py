@@ -1,15 +1,16 @@
 """Publish Android version policies from stable GitHub releases."""
 import json
 import logging
-import os
 import re
 from urllib.request import Request, urlopen
 
 from google.cloud.firestore import SERVER_TIMESTAMP
 
-APP_IDS = ("noticeboardv2", "placementv2")
+RELEASE_REPOS = {
+    "noticeboardv2": "HUKA-Taro/noticeboard_v2",
+    "placementv2": "HUKA-Taro/placement_v2",
+}
 TAG = re.compile(r"v(\d+\.\d+\.\d+)$")
-REPO = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 INTERVAL_SECONDS = 300
 RPC_OPTIONS = {"timeout": 5, "retry": None}
 
@@ -47,13 +48,7 @@ def release_policy(app, repo):
 
 
 def publish_versions(client):
-    for app in APP_IDS:
-        repo = os.environ.get(f"{app.upper()}_RELEASE_REPO", "").strip()
-        if not repo:
-            continue
-        if not REPO.fullmatch(repo):
-            logging.warning("Invalid release repository for %s", app)
-            continue
+    for app, repo in RELEASE_REPOS.items():
         try:
             policy = release_policy(app, repo)
             if policy is None:
