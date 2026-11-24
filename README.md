@@ -1,100 +1,148 @@
 # Channel i Checker
 
-This Windows checker watches the latest Noticeboard page and the current placement company index. It checks both feeds every five seconds and backs off for up to 30 seconds per feed after errors. Changes trigger Firebase pushes to Noticeboard V2 or Placement V2.
+Channel i Checker runs on a computer that can reach IIT Roorkee's Channel i feeds. It checks for new or changed notices and company-wise placement results, then sends Firebase Cloud Messaging (FCM) pushes to the V2 apps.
 
-1. Connect to IITR Wi-Fi or an IITR-approved connection that reaches both feeds.
-2. Install Python 3.11 or later if needed.
-3. Double-click **Start Checker.cmd**. On first launch it installs the dependencies. The window opens paused.
-4. Select **Start checking**. If the Firebase key is missing, use **Configure Firebase key** once. The checker stores a copy in the Git-ignored .local-checker folder.
+## What it checks
 
-Close the window to hide the checker in the Windows notification area. Right-click its icon to reopen, pause, resume, or quit. To send a test push, open the window, select one app or **Both apps**, and click **Send test notification**. Keep the computer awake and connected while checking.
+| Feed | What triggers an alert | App notified |
+| --- | --- | --- |
+| Noticeboard | A notice is added or its contents change | Noticeboard V2 |
+| Placement results | A company-wise placement result entry is added or changes | Placement V2 |
 
-The snapshot and saved key path live in the ignored .local-checker folder. The first successful fetch quietly saves a baseline. Later changes in the notice list or the placement company index trigger pushes. The apps must use the same Firebase project and allow notifications.
+The checker does not monitor internship results or application deadline changes. On its first successful run, it saves the current data as a baseline without sending alerts for existing items. Later changes can trigger pushes.
 
-For a one-time connectivity check, run .venv\Scripts\python.exe run_local.py --check.
+## Before you start
 
-On the configured laptop, the Windows Startup shortcut opens the checker in the tray and starts polling after sign-in. Remove Channel i Checker.lnk from the current user Startup folder to disable automatic launch.
+- The machine must use IITR Wi-Fi or another IITR-approved connection that can reach both feeds. Outside that network, requests may time out or return `403 Forbidden`.
+- Install Python 3.11 or newer. The Linux auto-updating launcher also needs Git and Python virtual-environment support.
+- Have a Firebase Admin service-account JSON for the same Firebase project used by the apps. It is used to send FCM pushes and, when configured, update Firestore status and app-version policies. The checker does not need your Channel i session cookie.
+- Run only one checker for a Firebase project. Running the laptop checker and homelab checker together can send duplicate notifications.
 
-## Headless Linux setup
+Never commit the Firebase JSON key. On Windows it is copied into the Git-ignored `.local-checker` folder. On Linux, keep the key outside the repository and restrict it to the service account.
 
-Use a Linux host on the IITR network with Git, Python 3.11 or later, and
-Python's venv support. Store the Firebase JSON outside the checkout under the
-account that runs the checker.
+## Choose how to run it
 
-```sh
-git clone https://github.com/HUKA-Taro/channeli-checker.git
-cd channeli-checker
-chmod 600 /path/to/firebase-fcm.json
-python3 run_homelab.py /path/to/firebase-fcm.json
-```
+### Windows laptop: tray app
 
-The launcher installs dependencies locally, keeps the checker running and
-checks for a new stable GitHub release at startup and then once an hour. It accepts only
-forward updates from the official main branch and keeps local snapshots in
-`.local-checker`. Keep the launcher running under your service manager if you
-want it to start after reboot. Use a dedicated unprivileged service account
-on the host. Run one checker per Firebase project. No inbound port or session
-cookie is needed.
+Use this when you want to start and stop checking yourself on the laptop.
 
-## Remote status
+1. Connect the laptop to IITR Wi-Fi or an approved network.
+2. Double-click **Start Checker.cmd**. The first launch creates a virtual environment and installs the required packages.
+3. If asked, use **Configure Firebase key** and choose the Admin JSON file. The tray app stores its private copy under `.local-checker`.
+4. Click **Start checking**. The window shows the status of both feeds.
+5. To stop polling, click **Stop checking**. To send a test push, choose **Noticeboard V2**, **Placement V2**, or **Both apps**, then click **Send test notification**.
 
-The Linux launcher uses the same service-account JSON for pushes and the
-Firestore heartbeat. The project owner configures the dedicated
-`checker-status` database, its rules, and a database-scoped IAM grant. The
-homelab operator can keep running the same launcher command. The Windows tray checker also publishes status with its configured Firebase key. Windows command-line polling can use the optional `--status-key` flag.
+Closing the window hides it in the Windows notification area; it does not stop checking. Use the tray menu to reopen the window or quit the checker. Starting the checker at Windows sign-in is optional. If you only want to use the laptop checker when the homelab is down, open **Start Checker.cmd** manually and do not add it to Windows Startup.
 
-The backend publishes a heartbeat every 30 seconds and checks the private ping
-mailbox every 15 seconds. Failed Firestore requests leave feed polling running.
-In the V2 apps, open **Profile > Notification settings** to see the status.
-
-To check the homelab from a Windows laptop with a private status credential:
+To check feed access once without starting continuous polling or sending alerts, run:
 
 ```powershell
-.venv/Scripts/python.exe checker_status.py --key "E:/path/to/laptop-status.json"
+Start Checker.cmd --check
 ```
 
-The public status document carries only a timestamp and per-feed health flags.
-The ping and reply stay in the private mailbox.
+### Linux homelab: persistent, self-updating service
 
-Each running checker contributes a private heartbeat. Hosts expire after 90
-seconds. The apps show a feed as healthy if any current checker can read it.
-Private ping replies include the replying checker's last accepted push time
-when available. For accurate combined status, upgrade older checker instances
-that still write the single heartbeat directly. Multiple alert senders can
-produce duplicate notifications.
+Use this for the always-on checker. **Run `run_homelab.py` as the service command.** It starts `run_local.py` as an internal worker, keeps that worker running, and checks for official checker releases. Do not configure `run_local.py` as the homelab service command; it is only the worker and does not update its own source.
 
-## Android release policy
+1. Clone the checker repository onto the homelab:
 
-The homelab checks the [Noticeboard V2](https://github.com/HUKA-Taro/noticeboard_v2)
-and [Placement V2](https://github.com/HUKA-Taro/placement_v2) release repos
-automatically when Firestore is enabled. The built-in checker and app download
-flow require these repositories and their release assets to be publicly
-readable. Private release repositories need a different authenticated download
-setup and are not supported by the current app update flow. No release repo
-environment variables are required. Deploy `firestore.status.rules` to the
-existing checker status database. Clients can read the two policy documents,
-and the checker writes them using the existing Firebase Admin credential.
+   ```sh
+   git clone https://github.com/HUKA-Taro/channeli-checker.git
+   cd channeli-checker
+   ```
 
-The checker checks GitHub every five minutes. Build and sign the APK from the
-source at the stable release tag, then attach one APK before publishing. Use
-a name such as `noticeboardv2-2.1.0.apk` or `placementv2-2.3.0.apk`.
+2. Put the Firebase Admin JSON outside the checkout. Restrict access to it:
 
-The checker reads the release version from the tag and the Android build
-number from the tagged Flutter `pubspec.yaml`. Keep the tag and version in
-`pubspec.yaml` in sync. Name the assets `noticeboardv2-2.1.0.apk` and
-`placementv2-2.3.0.apk` for these app versions. The checker requires GitHub
-to report the APK as uploaded and provide its SHA-256 digest before advancing
-the required build. The initial gated releases need policy documents before a
-fresh install can open.
+   ```sh
+   chmod 600 /path/to/firebase-fcm.json
+   ```
 
+3. Start the launcher:
 
-## Query the homelab checker version
+   ```sh
+   python3 run_homelab.py /path/to/firebase-fcm.json
+   ```
 
-Use the same private Firestore status credential as the health ping.
+4. Keep that process running with the homelab's service manager so it restarts after reboot. Run it under a dedicated, unprivileged Linux account.
+
+The launcher checks for a newer stable GitHub release at startup and once an hour. It accepts only forward updates that are part of the official `main` branch, installs the release's Python dependencies, and restarts the worker automatically. No inbound network port or Channel i session cookie is needed.
+
+## Timing and retry behavior
+
+- The checker normally attempts both feeds on a five-second cycle. Requests run one after another.
+- Each request has a ten-second timeout.
+- A failed feed retries with increasing delays, capped at 30 seconds. The other feed continues to be checked.
+- The last good snapshot is kept when a request fails. Once access returns, the checker compares against that saved snapshot.
+
+A five-second cycle is the normal polling target, not a guarantee that every alert arrives within five seconds. Feed response time, network access, retry delays, Firebase delivery, and Android notification settings all affect delivery time.
+
+## Firestore status and app updates
+
+The homelab can publish checker health and the minimum supported app versions to Firestore. This is separate from polling the Channel i feeds; feed polling continues if Firestore status is temporarily unavailable.
+
+One-time setup by the Firebase project owner requires:
+
+- The Firestore database named `checker-status`.
+- The rules in `firestore.status.rules` deployed to that database.
+- The homelab service account configured with the required Firestore permissions and FCM access.
+
+When enabled, the homelab:
+
+- Publishes feed health every 30 seconds. The apps show the status in **Profile > Notification settings** and refresh it every 30 seconds while that screen is open.
+- Checks its private ping mailbox every 15 seconds. A status credential can request a reply or ask which checker release is running.
+- Checks app releases every five minutes and advances Firestore's minimum-build policy when it finds a newer valid stable release.
+
+The Windows tray can publish heartbeat status, but it does not run the Linux launcher's self-update or app-version publishing loop.
+
+### Check the homelab from Windows
+
+Use the private status credential provided for your laptop. Run these commands from the checker folder:
 
 ```powershell
-.venv/Scripts/python.exe checker_status.py --key "E:/path/to/laptop-status.json" --version
+.venv\Scripts\python.exe checker_status.py --key "E:/path/to/laptop-status.json"
 ```
 
-The reply shows the release and commit currently running on the homelab.
-The launcher checks GitHub automatically at startup and once an hour.
+To ask which checker release and commit are running:
+
+```powershell
+.venv\Scripts\python.exe checker_status.py --key "E:/path/to/laptop-status.json" --version
+```
+
+A reply confirms the homelab reached Firestore and responded to the ping. No reply within 40 seconds usually means the homelab process is stopped, the status credential or IAM is wrong, or Firestore is unavailable.
+
+## Publishing app releases
+
+The homelab can publish the apps' update policies from their latest public GitHub releases. For an app release to be accepted:
+
+1. The release must be stable (not a draft or prerelease) and use a tag such as `v2.4.0`.
+2. The tag's `pubspec.yaml` version must match the tag. The build number must be present in that file.
+3. Attach exactly one APK asset for that app and let GitHub finish uploading it. The release asset must have a valid SHA-256 digest.
+4. Keep the app's source and APK release publicly readable so the app can download the APK.
+
+The homelab reads the version from the release tag and the minimum Android build from `pubspec.yaml`. It publishes the policy only when that build is newer than the one already stored. APK names can follow the pattern `noticeboardv2-2.4.0.apk` or `placementv2-2.4.0.apk`; keep the filename, app version, and release tag consistent.
+
+## Troubleshooting
+
+### A feed shows an error
+
+Run the one-time feed check on an IITR-approved network. A timeout or `403 Forbidden` means the checker could not read that feed at that moment; it will preserve the last good snapshot and retry. Check the warning for the feed name and the HTTP or connection error.
+
+### The app says the checker is online, but the feed is not ready
+
+The heartbeat is recent, so a checker has reported in, but it has not reported a successful read of that feed. Check that feed's recent checker logs and confirm the homelab has IITR network access.
+
+### The test push succeeds but the phone shows nothing
+
+Confirm that the app and checker use the same Firebase project, Android notifications are allowed, and the matching alert switch is enabled in the app. A tray test confirms Firebase accepted the test push; Android permission and device settings still control display.
+
+### The app does not see a new release
+
+Confirm the tag and `pubspec.yaml` version match, the release is stable, and exactly one APK is attached and fully uploaded. The homelab checks app releases every five minutes. The policy is not advanced for an invalid release or a build number that is not newer.
+
+## Local state and logs
+
+- Windows key copy, feed snapshot, and log: `.local-checker`.
+- Linux key: outside the repository. Linux snapshot and runtime files: `.local-checker`.
+- Python dependencies: `.venv`.
+
+These local folders are Git-ignored. Do not delete the snapshot while the checker is running; it is used to compare new data with the last successful check.
