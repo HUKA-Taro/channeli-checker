@@ -65,8 +65,8 @@ produce duplicate notifications.
 
 ## Android release policy
 
-The homelab checks the [Noticeboard V2](https://github.com/HUKA-Taro/noticeboardv2)
-and [Placement V2](https://github.com/HUKA-Taro/placementv2) release repos
+The homelab checks the [Noticeboard V2](https://github.com/HUKA-Taro/noticeboard_v2)
+and [Placement V2](https://github.com/HUKA-Taro/placement_v2) release repos
 automatically when Firestore is enabled. The built-in checker and app download
 flow require these repositories and their release assets to be publicly
 readable. Private release repositories need a different authenticated download

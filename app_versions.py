@@ -9,8 +9,8 @@ from urllib.request import Request, urlopen
 from google.cloud.firestore import SERVER_TIMESTAMP
 
 RELEASE_REPOS = {
-    "noticeboardv2": "HUKA-Taro/noticeboardv2",
-    "placementv2": "HUKA-Taro/placementv2",
+    "noticeboardv2": "HUKA-Taro/noticeboard_v2",
+    "placementv2": "HUKA-Taro/placement_v2",
 }
 TAG = re.compile(r"v(\d+\.\d+\.\d+)$")
 INTERVAL_SECONDS = 300
