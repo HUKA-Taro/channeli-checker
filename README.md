@@ -65,12 +65,15 @@ produce duplicate notifications.
 
 ## Android release policy
 
-The homelab checks the public [Noticeboard V2](https://github.com/HUKA-Taro/noticeboard_v2)
-and [Placement V2](https://github.com/HUKA-Taro/placement_v2) repos automatically
-when Firestore is enabled. No release repo environment variables are required.
-Deploy `firestore.status.rules` to the existing checker status database.
-Clients can read the two policy documents, and the checker writes them using
-the existing Firebase Admin credential.
+The homelab checks the [Noticeboard V2](https://github.com/HUKA-Taro/noticeboardv2)
+and [Placement V2](https://github.com/HUKA-Taro/placementv2) release repos
+automatically when Firestore is enabled. The built-in checker and app download
+flow require these repositories and their release assets to be publicly
+readable. Private release repositories need a different authenticated download
+setup and are not supported by the current app update flow. No release repo
+environment variables are required. Deploy `firestore.status.rules` to the
+existing checker status database. Clients can read the two policy documents,
+and the checker writes them using the existing Firebase Admin credential.
 
 The checker checks GitHub every five minutes. Build and sign the APK from the
 source at the stable release tag, then attach one APK before publishing. Use
@@ -78,9 +81,12 @@ a name such as `noticeboardv2-2.1.0.apk` or `placementv2-2.3.0.apk`.
 
 The checker reads the release version from the tag and the Android build
 number from the tagged Flutter `pubspec.yaml`. Keep the tag and version in
-`pubspec.yaml` in sync. The checker requires GitHub to report the APK as
-uploaded and provide its SHA-256 digest before advancing the required build.
-The initial gated releases need policy documents before a fresh install can open.
+`pubspec.yaml` in sync. Name the assets `noticeboardv2-2.1.0.apk` and
+`placementv2-2.3.0.apk` for these app versions. The checker requires GitHub
+to report the APK as uploaded and provide its SHA-256 digest before advancing
+the required build. The initial gated releases need policy documents before a
+fresh install can open.
+
 
 ## Query the homelab checker version
 

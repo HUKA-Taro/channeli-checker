@@ -1,11 +1,128 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function identityFields() {
+      return request.resource.data.keys().hasAll([
+          'name', 'enrollmentNumber', 'firstSeenAt', 'lastSeenAt'
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.enrollmentNumber is string
+        && request.resource.data.enrollmentNumber.matches('^[0-9]{8}$')
+        && request.resource.data.lastSeenAt == request.time;
+    }
+
+    function createTimestamps() {
+      return request.resource.data.firstSeenAt == request.time
+        && (!('lastSignInAt' in request.resource.data)
+          || request.resource.data.lastSignInAt == request.time);
+    }
+
+    function updateTimestamps() {
+      return request.resource.data.firstSeenAt == resource.data.firstSeenAt
+        && (
+          !('lastSignInAt' in request.resource.data)
+          || request.resource.data.lastSignInAt == request.time
+          || (
+            'lastSignInAt' in resource.data
+            && request.resource.data.lastSignInAt == resource.data.lastSignInAt
+          )
+        );
+    }
+
+    function accountDocumentId(accountId) {
+      return accountId.matches('^[0-9]{8}_[A-Za-z0-9_]{1,150}$');
+    }
+
+    function deviceDocumentId(deviceId) {
+      return deviceId.matches('^[a-f0-9]{64}$');
+    }
+
     match /app_versions/{app} {
       allow get: if app in ['noticeboardv2', 'placementv2'];
     }
+
     match /checker_status/public {
       allow get: if true;
+    }
+
+    match /noticeboard_devices/{accountId} {
+      allow read, delete: if false;
+      allow create: if accountDocumentId(accountId)
+        && request.resource.data.keys().hasOnly([
+          'name', 'enrollmentNumber', 'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+        ])
+        && identityFields()
+        && createTimestamps();
+      allow update: if accountDocumentId(accountId)
+        && request.resource.data.keys().hasOnly([
+          'name', 'enrollmentNumber', 'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+        ])
+        && identityFields()
+        && updateTimestamps();
+
+      match /devices/{deviceId} {
+        allow read, delete: if false;
+        allow create: if accountDocumentId(accountId)
+          && deviceDocumentId(deviceId)
+          && request.resource.data.keys().hasOnly([
+            'name', 'enrollmentNumber', 'androidIdHash',
+            'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+          ])
+          && identityFields()
+          && request.resource.data.androidIdHash == deviceId
+          && createTimestamps();
+        allow update: if accountDocumentId(accountId)
+          && deviceDocumentId(deviceId)
+          && request.resource.data.keys().hasOnly([
+            'name', 'enrollmentNumber', 'androidIdHash',
+            'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+          ])
+          && identityFields()
+          && request.resource.data.androidIdHash == deviceId
+          && request.resource.data.androidIdHash == resource.data.androidIdHash
+          && updateTimestamps();
+      }
+    }
+
+    match /placement_devices/{accountId} {
+      allow read, delete: if false;
+      allow create: if accountDocumentId(accountId)
+        && request.resource.data.keys().hasOnly([
+          'name', 'enrollmentNumber', 'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+        ])
+        && identityFields()
+        && createTimestamps();
+      allow update: if accountDocumentId(accountId)
+        && request.resource.data.keys().hasOnly([
+          'name', 'enrollmentNumber', 'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+        ])
+        && identityFields()
+        && updateTimestamps();
+
+      match /devices/{deviceId} {
+        allow read, delete: if false;
+        allow create: if accountDocumentId(accountId)
+          && deviceDocumentId(deviceId)
+          && request.resource.data.keys().hasOnly([
+            'name', 'enrollmentNumber', 'androidIdHash',
+            'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+          ])
+          && identityFields()
+          && request.resource.data.androidIdHash == deviceId
+          && createTimestamps();
+        allow update: if accountDocumentId(accountId)
+          && deviceDocumentId(deviceId)
+          && request.resource.data.keys().hasOnly([
+            'name', 'enrollmentNumber', 'androidIdHash',
+            'firstSeenAt', 'lastSignInAt', 'lastSeenAt'
+          ])
+          && identityFields()
+          && request.resource.data.androidIdHash == deviceId
+          && request.resource.data.androidIdHash == resource.data.androidIdHash
+          && updateTimestamps();
+      }
     }
   }
 }
