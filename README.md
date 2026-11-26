@@ -108,6 +108,14 @@ To ask which checker release and commit are running:
 .venv\Scripts\python.exe checker_status.py --key "E:/path/to/laptop-status.json" --version
 ```
 
+To ask the running homelab to check GitHub for a checker update immediately:
+
+```powershell
+.venv\Scripts\python.exe checker_status.py --key "E:/path/to/laptop-status.json" --update
+```
+
+The request goes through the existing private Firestore mailbox. The homelab acknowledges it, checks the latest stable checker release within a few seconds, and if a newer release is available, installs it and restarts the checker worker automatically. This does not restart the homelab machine or service. The command requires a laptop status credential with write access to `checker_status/homelab_control`; the homelab must be running `run_homelab.py` with Firestore status enabled.
+
 A reply confirms the homelab reached Firestore and responded to the ping. No reply within 40 seconds usually means the homelab process is stopped, the status credential or IAM is wrong, or Firestore is unavailable.
 
 ## Publishing app releases

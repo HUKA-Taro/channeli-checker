@@ -104,6 +104,10 @@ def main():
             while not stop.is_set():
                 if worker is None or worker.poll() is not None:
                     worker = subprocess.Popen([str(python), *worker_args], cwd=ROOT)
+                update_request = RUNTIME / "update-request"
+                if update_request.exists():
+                    update_request.unlink()
+                    next_update = 0
                 if time.monotonic() >= next_update:
                     next_update = time.monotonic() + UPDATE_INTERVAL
                     try:

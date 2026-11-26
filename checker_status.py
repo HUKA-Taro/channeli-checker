@@ -140,13 +140,19 @@ def respond_to_version(client, version, commit):
         ping = request.to_dict() or {}
         requested = ping.get("requested_at")
         if (not ping.get("request_id") or ping.get("responded_at")
-                or ping.get("action") != "version"
+                or ping.get("action") not in {"version", "update"}
                 or not isinstance(requested, datetime)
                 or not timedelta(0) <= request.read_time - requested < timedelta(minutes=1)):
             return
+        fields = {"responded_at": SERVER_TIMESTAMP, "version": version,
+                  "commit": commit}
+        if ping.get("action") == "update":
+            marker = Path(__file__).resolve().parent / ".local-checker" / "update-request"
+            marker.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            marker.touch(mode=0o600, exist_ok=True)
+            fields["result"] = "update check queued"
         ref.update(
-            {"responded_at": SERVER_TIMESTAMP, "version": version,
-             "commit": commit},
+            fields,
             option=client.write_option(last_update_time=request.update_time),
             **RPC_OPTIONS,
         )
@@ -160,17 +166,20 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--key", required=True, type=Path)
     parser.add_argument("--database", default="checker-status")
-    parser.add_argument("--version", action="store_true", help="Ask the homelab which release it is running.")
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--version", action="store_true", help="Ask which checker release the homelab is running.")
+    action.add_argument("--update", action="store_true", help="Ask the homelab to check GitHub for an update now.")
     args = parser.parse_args()
 
     try:
         client, ref = mailbox(args.key, args.database)
-        if args.version:
+        if args.version or args.update:
             ref = client.document("checker_status/homelab_control")
         request_id = uuid4().hex
         start = time.monotonic()
-        action = "version" if args.version else "status"
-        ref.set({"request_id": request_id, "requested_at": SERVER_TIMESTAMP, "action": action},
+        requested_action = "update" if args.update else "version" if args.version else "status"
+        ref.set({"request_id": request_id, "requested_at": SERVER_TIMESTAMP,
+                 "action": requested_action},
                 **RPC_OPTIONS)
         while time.monotonic() - start < TIMEOUT_SECONDS:
             reply = ref.get(**RPC_OPTIONS).to_dict() or {}
@@ -182,6 +191,9 @@ def main():
                 if args.version:
                     print(f"Homelab release: {reply.get('version') or 'untagged'} "
                           f"({reply.get('commit') or 'unknown commit'}).")
+                if args.update:
+                    print(f"Homelab {reply.get('version') or 'untagged'}: "
+                          f"{reply.get('result') or 'update check queued'}.")
                 for name, info in reply.get("feeds", {}).items():
                     print(f"{name}: last success {info['last_success'] or 'none yet'}; "
                           f"consecutive failures {info['consecutive_failures']}; "
