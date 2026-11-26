@@ -206,14 +206,19 @@ class CheckerWindow:
         status_stop = threading.Event()
         error = False
         try:
-            from checker_status import respond
+            from checker_status import publish_app_versions, respond
 
             threading.Thread(
                 target=respond, args=(LOCAL_KEY, "checker-status", snapshot, status_stop),
                 daemon=True, name="checker-status",
             ).start()
+            threading.Thread(
+                target=publish_app_versions,
+                args=(LOCAL_KEY, "checker-status", status_stop),
+                daemon=True, name="app-versions",
+            ).start()
         except ImportError:
-            logging.warning("Install requirements.txt to enable Firestore status")
+            logging.warning("Install requirements.txt to enable Firestore status and app version publishing")
         try:
             while not self.stop_requested.is_set():
                 started = time.monotonic()

@@ -92,7 +92,7 @@ When enabled, the homelab:
 - Checks its private ping mailbox every 15 seconds. A status credential can request a reply or ask which checker release is running.
 - Checks app releases every five minutes and advances Firestore's minimum-build policy when it finds a newer valid stable release.
 
-The Windows tray can publish heartbeat status, but it does not run the Linux launcher's self-update or app-version publishing loop.
+The Windows tray publishes heartbeat status and checks app releases every five minutes to advance Firestore app-version policies when a newer valid release is available. It does not update its own checker code; self-updating the checker remains the Linux launcher's job.
 
 ### Check the homelab from Windows
 
